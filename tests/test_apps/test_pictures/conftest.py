@@ -51,7 +51,7 @@ FavAssertion: TypeAlias = Callable[[str, [PictureData]], None]
 def assert_correct_favourite_pictures() -> FavAssertion:
     """Check that user has correct favourite pictures."""
 
-    def factory(email: str, expected: [PictureData]) -> None:
+    def factory(email: str, expected: list[PictureData]) -> None:
         favourite = FavouritesList()(User.objects.get(email=email).id).all()
         assert len(favourite) == len(expected)
         for idx, _ in enumerate(expected):
