@@ -1,8 +1,9 @@
-from typing import Callable, TypeAlias, TypedDict, final
+from typing import Callable, TypedDict, final
 
 import pytest
 from mimesis import Field, Schema
 from mimesis.enums import Locale
+from typing_extensions import TypeAlias
 
 from server.apps.identity.models import User
 from server.apps.pictures.logic.usecases.favourites_list import FavouritesList
@@ -25,7 +26,7 @@ def picture_data(faker_seed: int) -> PictureData:
         'url': mf('url'),
     })
     return {
-        **schema.create(iterations=1)[0],
+        **schema.create(iterations=1)[0],  # type: ignore[misc]
     }
 
 
@@ -34,7 +35,7 @@ def picture_data(faker_seed: int) -> PictureData:
     2,
     5,
 ])
-def picture_data_list(request, faker_seed: int) -> [PictureData]:
+def picture_data_list(request, faker_seed: int):
     """Generate list of picture data."""
     mf = Field(locale=Locale.RU, seed=faker_seed)
     schema = Schema(schema=lambda: {
@@ -44,7 +45,7 @@ def picture_data_list(request, faker_seed: int) -> [PictureData]:
     return schema.create(iterations=request.param)
 
 
-FavAssertion: TypeAlias = Callable[[str, [PictureData]], None]
+FavAssertion: TypeAlias = Callable[[str, list[PictureData]], None]
 
 
 @pytest.fixture(scope='session')

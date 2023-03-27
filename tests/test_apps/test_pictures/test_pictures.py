@@ -12,7 +12,7 @@ from tests.test_apps.test_pictures.conftest import FavAssertion, PictureData
 def test_add_favourite_pictures(
     client: Client,
     login: User,
-    picture_data_list: [PictureData],
+    picture_data_list: list[PictureData],
     assert_correct_favourite_pictures: FavAssertion,
 ) -> None:
     """This test check adding favourite pictures functionality."""

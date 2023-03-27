@@ -1,11 +1,11 @@
 import datetime as dt
-from typing import Callable, Optional, TypeAlias, TypedDict, final
+from typing import Callable, Optional, TypedDict, final
 
 import pytest
 from django.test import Client
-from django_fakery import factory as model_factory
 from mimesis import Field, Schema
 from mimesis.enums import Locale
+from typing_extensions import TypeAlias
 
 from server.apps.identity.models import User
 
@@ -118,8 +118,8 @@ def assert_correct_user() -> UserAssertion:
 @pytest.fixture()
 def create_new_user(user_data: RegistrationData) -> User:
     """Create new user."""
-    user = model_factory.m(User)(**user_data)
-
+    user = User(**user_data)
+    user.set_password(user_data['password'])
     user.save()
 
     return user
