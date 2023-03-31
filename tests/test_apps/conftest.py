@@ -1,45 +1,39 @@
-import datetime as dt
-from typing import Callable, Optional, TypedDict, final
+from typing import Callable
 
 import pytest
+from django.contrib.messages import get_messages
+from django.core.handlers.wsgi import WSGIRequest
 from django.test import Client
 from mimesis import Field, Schema
 from mimesis.enums import Locale
 from typing_extensions import TypeAlias
 
 from server.apps.identity.models import User
+from server.apps.pictures.models import FavouritePicture
+from tests.plugins.identity.user import LoginData, UserAssertion, UserData
+from tests.test_apps.test_pictures.conftest import PictureData
 
 
-@final
-class RegistrationData(TypedDict, total=False):
-    """Represent the user data that is required to create a new user."""
+@pytest.fixture()
+def picture_factory():
+    """Generate picture data."""
 
-    email: str
-    first_name: str
-    last_name: str
-    date_of_birth: dt.datetime
-    address: str
-    job_title: str
-    phone: str
-    phone_type: int
-    password: str
-    password1: Optional[str]
-    password2: Optional[str]
+    def factory(faker_seed, count) -> list[PictureData]:
+        mf = Field(locale=Locale.RU, seed=faker_seed)
+        schema = Schema(schema=lambda: {
+            'foreign_id': mf('increment'),
+            'url': mf('url'),
+        })
+        return schema.create(iterations=count)  # type: ignore[return-value]
 
-
-@final
-class LoginData(TypedDict, total=False):
-    """Represent the simplified login data."""
-
-    username: str
-    password: str
+    return factory
 
 
 @pytest.fixture()
 def user_factory():
     """Generate registration data."""
 
-    def factory(faker_seed, **fields) -> RegistrationData:
+    def factory(faker_seed, **fields) -> UserData:
         mf = Field(locale=Locale.RU, seed=faker_seed)
         password = mf('password')  # by default passwords are equal
         schema = Schema(schema=lambda: {
@@ -53,7 +47,7 @@ def user_factory():
         })
         return {
             **schema.create(iterations=1)[0],  # type: ignore[misc]
-            **{'password': password},
+            **{'password1': password, 'password2': password},
             **fields,
         }
 
@@ -61,45 +55,46 @@ def user_factory():
 
 
 @pytest.fixture()
-def user_data(user_factory, faker_seed):
+def registration_data(user_factory, faker_seed):
     """Random user data from factory."""
     return user_factory(faker_seed)
 
 
 @pytest.fixture()
-def registration_data(user_data: RegistrationData) -> RegistrationData:
+def user_data(registration_data: UserData):
     """User data."""
-    user_data['password1'] = user_data['password']
-    user_data['password2'] = user_data['password']
-
-    return user_data
-
-
-@pytest.fixture()
-def login_data(user_data: RegistrationData) -> LoginData:
-    """Login data from``registration_data``."""
     return {
-        'username': user_data['email'],
-        'password': user_data['password'],
+        **{
+            key_name: value_part
+            for key_name, value_part in registration_data.items()
+            if not key_name.startswith('password')
+        },
+        **{'password': registration_data['password1']},
     }
 
 
 @pytest.fixture()
-def new_user_data(user_factory, registration_data: RegistrationData):
+def login_data(registration_data: UserData) -> LoginData:
+    """Login data from``registration_data``."""
+    return {
+        'username': registration_data['email'],
+        'password': registration_data['password1'],
+    }
+
+
+@pytest.fixture()
+def new_user_data(user_factory, registration_data: UserData):
     """New user data from factory."""
     test = user_factory(1)
     test['email'] = registration_data['email']
     return test
 
 
-UserAssertion: TypeAlias = Callable[[RegistrationData], None]
-
-
 @pytest.fixture(scope='session')
 def assert_correct_user() -> UserAssertion:
     """Check that user created correctly."""
 
-    def factory(expected: RegistrationData) -> None:
+    def factory(expected: UserData) -> None:
         user = User.objects.get(email=expected['email'])
         # Special fields:
         assert user.id
@@ -109,14 +104,16 @@ def assert_correct_user() -> UserAssertion:
         # All other fields:
         for field_name, data_value in expected.items():
             if not field_name.startswith('password'):
-                assert getattr(user, field_name) == data_value
-
+                actual = getattr(user, field_name)
+                if not actual:
+                    actual = ''
+                assert actual == data_value
     return factory
 
 
 @pytest.mark.django_db()
 @pytest.fixture()
-def create_new_user(user_data: RegistrationData) -> User:
+def create_new_user(user_data: UserData) -> User:
     """Create new user."""
     user = User(**user_data)
     user.set_password(user_data['password'])
@@ -132,3 +129,45 @@ def login(client: Client, create_new_user: User) -> User:
     client.force_login(create_new_user)
 
     return create_new_user
+
+
+@pytest.mark.django_db()
+@pytest.fixture(params=[
+    1,
+    2,
+    5,
+])
+def add_favourite_pictures(
+    create_new_user: User,
+    picture_factory,
+    faker_seed,
+    request,
+) -> list[FavouritePicture]:
+    """Add favourite pictures to user."""
+    favorites = [
+        FavouritePicture(**fav) for fav in picture_factory(
+            faker_seed,
+            request.param,
+        )
+    ]
+    for fav in favorites:
+        fav.user = create_new_user
+        fav.save()
+
+    return favorites
+
+
+MessageAssertion: TypeAlias = Callable[[WSGIRequest, list[str]], None]
+
+
+@pytest.fixture(scope='session')
+def assert_correct_form_message() -> MessageAssertion:
+    """Check that user created correctly."""
+
+    def factory(wsgi_request, expected: list[str]) -> None:
+        messages = list(get_messages(wsgi_request))
+        assert len(messages) == len(expected)
+        for idx, message in enumerate(messages):
+            assert str(message) == expected[idx]
+
+    return factory

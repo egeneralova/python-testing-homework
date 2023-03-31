@@ -9,7 +9,7 @@ from django.db import models
 
 from server.common.django.models import TimedMixin
 
-# For now we use a single length for all items, later it can be changed.
+# For now, we use a single length for all items, later it can be changed.
 _NAME_LENGTH: Final = 254
 
 
@@ -23,7 +23,7 @@ class _UserManager(BaseUserManager['User']):
     ) -> 'User':
         """Create user: regular registration process."""
         if not email:
-            # We double check it here,
+            # We double-check it here,
             # but validation should make this unreachable.
             raise ValueError('Users must have an email address')
 
@@ -38,7 +38,7 @@ class _UserManager(BaseUserManager['User']):
         password: str,
         **extra_fields,
     ) -> 'User':
-        """Create super user."""
+        """Create superuser."""
         user = self.create_user(email, password, **extra_fields)
         user.is_superuser = True
         user.is_staff = True
@@ -80,10 +80,12 @@ class User(AbstractBaseUser, PermissionsMixin, TimedMixin):
     REQUIRED_FIELDS = [  # noqa: WPS115
         'first_name',
         'last_name',
-        'date_of_birth',
         'address',
         'job_title',
         'phone',
+    ]
+    OPTIONAL = [  # noqa: WPS115
+        'date_of_birth',
     ]
 
     if TYPE_CHECKING:  # noqa: WPS604

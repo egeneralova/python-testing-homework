@@ -11,7 +11,7 @@ from server.common.django.admin import TimeReadOnlyMixin
 class UserAdmin(TimeReadOnlyMixin, admin.ModelAdmin[User]):
     """This class represents `User` in admin panel."""
 
-    list_display = tuple(['id'] + User.REQUIRED_FIELDS)
+    list_display = tuple(['id'] + User.REQUIRED_FIELDS + User.OPTIONAL)
     search_fields = (
         'email',
         'first_name',
